@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `photo` VARCHAR(512) NOT NULL AFTER `mobile`;
