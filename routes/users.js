@@ -1,58 +1,45 @@
 const express = require("express");
 const db = require("../db");
+const multer = require("multer");
+const path = require("path");
+
 const router = express.Router();
 
-/**
- * @swagger
- * /users:
- *   post:
- *     summary: Create user
- *     tags: [Users]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               username:
- *                 type: string
- *                 example: alex123
- *               email:
- *                 type: string
- *                 example: a@test.com
- *               password:
- *                 type: string
- *                 example: secret123
- *               mobile:
- *                 type: string
- *                 example: "1234567890"
- *     responses:
- *       201:
- *         description: User created
- */
-router.post("/", (req, res) => {
+// Multer config for photo upload
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
+
+// Serve uploaded files statically
+router.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
+// CREATE user with photo
+router.post("/", upload.single("photo"), (req, res) => {
   const { username, email, password, mobile } = req.body;
+  let photoUrl = null;
+
+  if (req.file) {
+    photoUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  }
+
   db.query(
-    "INSERT INTO users (username, email, password, mobile) VALUES (?, ?, ?, ?)",
-    [username, email, password, mobile],
+    "INSERT INTO users (username, email, password, mobile, photo) VALUES (?, ?, ?, ?, ?)",
+    [username, email, password, mobile, photoUrl],
     (err, result) => {
       if (err) return res.status(500).json(err);
-      res.status(201).json({ id: result.insertId });
+      res.status(201).json({ id: result.insertId, photo: photoUrl });
     }
   );
 });
 
-/**
- * @swagger
- * /users:
- *   get:
- *     summary: Get all users
- *     tags: [Users]
- *     responses:
- *       200:
- *         description: Users list
- */
+// GET all users
 router.get("/", (req, res) => {
   db.query("SELECT * FROM users", (err, results) => {
     if (err) return res.status(500).json(err);
@@ -60,109 +47,40 @@ router.get("/", (req, res) => {
   });
 });
 
-/**
- * @swagger
- * /users/{id}:
- *   get:
- *     summary: Get user by ID
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: User found
- *       404:
- *         description: User not found
- */
+// GET user by ID
 router.get("/:id", (req, res) => {
-  db.query(
-    "SELECT * FROM users WHERE id = ?",
-    [req.params.id],
-    (err, results) => {
-      if (err) return res.status(500).json(err);
-      if (!results.length)
-        return res.status(404).json({ message: "User not found" });
-      res.json(results[0]);
-    }
-  );
+  db.query("SELECT * FROM users WHERE id=?", [req.params.id], (err, results) => {
+    if (err) return res.status(500).json(err);
+    if (!results.length) return res.status(404).json({ message: "User not found" });
+    res.json(results[0]);
+  });
 });
 
-/**
- * @swagger
- * /users/{id}:
- *   put:
- *     summary: Update user details (username, email, password, mobile)
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               username:
- *                 type: string
- *                 example: alex456
- *               email:
- *                 type: string
- *                 example: newemail@test.com
- *               password:
- *                 type: string
- *                 example: newpass123
- *               mobile:
- *                 type: string
- *                 example: "0987654321"
- *     responses:
- *       200:
- *         description: User updated
- */
-router.put("/:id", (req, res) => {
+// UPDATE user
+router.put("/:id", upload.single("photo"), (req, res) => {
   const { username, email, password, mobile } = req.body;
+  let photoUrl = null;
+
+  if (req.file) {
+    photoUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  }
+
   db.query(
-    "UPDATE users SET username=?, email=?, password=?, mobile=? WHERE id=?",
-    [username, email, password, mobile, req.params.id],
+    "UPDATE users SET username=?, email=?, password=?, mobile=?, photo=COALESCE(?, photo) WHERE id=?",
+    [username, email, password, mobile, photoUrl, req.params.id],
     (err) => {
       if (err) return res.status(500).json(err);
-      res.json({ message: "User updated" });
+      res.json({ message: "User updated", photo: photoUrl });
     }
   );
 });
 
-/**
- * @swagger
- * /users/{id}:
- *   delete:
- *     summary: Delete user
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: User deleted
- */
+// DELETE user
 router.delete("/:id", (req, res) => {
-  db.query(
-    "DELETE FROM users WHERE id=?",
-    [req.params.id],
-    (err) => {
-      if (err) return res.status(500).json(err);
-      res.json({ message: "User deleted" });
-    }
-  );
+  db.query("DELETE FROM users WHERE id=?", [req.params.id], (err) => {
+    if (err) return res.status(500).json(err);
+    res.json({ message: "User deleted" });
+  });
 });
 
 module.exports = router;

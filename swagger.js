@@ -1,4 +1,3 @@
-// swagger.js
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const express = require("express");
@@ -11,17 +10,15 @@ const swaggerOptions = {
     info: {
       title: "Users CRUD API",
       version: "1.0.0",
-      description: "Express + MySQL CRUD demo with Swagger for users table",
+      description: "Express + MySQL CRUD demo with profile photo upload",
     },
     servers: [{ url: "http://localhost:3000" }],
   },
-  // Updated to point to the new users.js routes file
   apis: ["./routes/users.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-// Serve Swagger UI at /api-docs
 router.use("/", swaggerUi.serve);
 router.get("/", swaggerUi.setup(swaggerSpec));
 
